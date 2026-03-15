@@ -191,9 +191,8 @@
 
     // Температура зі знаком
     const tempValue = Math.round(current.temperature);
-    const sign = tempValue > 0 ? "+" : (tempValue < 0 ? "−" : "");
-    document.getElementById("temperature").innerHTML =
-      `<span class="sign">${sign}</span>${tempValue}<span class="degree">°</span><span class="unit">C</span>`;
+    const sign = tempValue > 0 ? "+" : "";
+    document.getElementById("temperature").innerHTML = `<span class="sign">${sign}</span>${tempValue}<span class="degree">°</span><span class="unit">C</span>`;
 
     document.getElementById("wind").textContent = "Вітер: " + current.windspeed + " км/год";
 
