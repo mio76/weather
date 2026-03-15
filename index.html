@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Погода</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+
+    * { margin: 0;padding: 0; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: sans-serif;
+      color: white;
+      text-align: center;
+      transition: background 1s ease;
+      background-repeat: no-repeat;
+      background-attachment: fixed;
+      background-size: cover;
+      text-shadow: 3px 5px 10px rgba(0,0,0,0.2);
+      font-size: 1.1em;  
+    }
+    header {
+      display: flex;
+      justify-content: flex-start; 
+    }
+     #searchBtn {
+      padding: 10px;
+      border: none;
+      cursor: pointer;
+      background: transparent;
+      font-size: 1.4em;
+      color: white;
+    }
+    #searchBox {
+      display: none;
+      padding: 5px;
+      border-radius: 5px;
+      border: none;
+      font-size: 1em;
+      outline: none;
+    }   
+    #location {
+      font-size: 1.6em;
+      font-weight: bold;
+      color: gold;
+    }
+    #localTime {
+      font-size: 1.2em;
+      margin-top: 10px;
+      line-height: 1.4; /* трохи більше за стандарт */
+    }
+    .weather {
+      display: flex;
+      justify-content: center;
+      align-items: center;      
+    }
+    .sign {
+      font-size: 0.6em;   /* трохи менший розмір */
+      vertical-align: middle; /* можна підняти над цифрами */
+      margin-right: 5px;  /* невеликий відступ */
+}
+    .temp {
+      font-size: 8em;      
+    }  
+    .degree {
+      font-size: 0.4em;       /* менший розмір */
+      vertical-align: super;  /* підняти над цифрами */
+      font-weight: 100;
+    }
+    .unit {
+      font-size: 0.6em;       /* менший розмір */
+      vertical-align: baseline; /* залишити на рівні */
+      margin-left: -15px;
+      font-weight: 100;
+    }
+    .icon {
+      font-size: 3.5em;
+      margin-top: -10px;
+    }
+    .details {
+      margin-top: 20px;
+      font-size: 1.2em;
+    }
+    .forecast {
+      margin-top: 20px;
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .forecast-item {
+      background: rgba(255,255,255,0.1);
+      padding: 20px;
+      border-radius: 12px;
+      min-width: 100px;
+      font-size: 1.2em;
+    }
+    #error {
+      margin-top: 20px;
+      font-size: 1.2em;
+      color: #ffccbc;
+      font-weight: bold;
+    } 
+    .forecast-item {
+  background: rgba(255,255,255,0.15);
+  padding: 20px;          /* більше відступів */
+  border-radius: 15px;
+  min-width: 140px;       /* ширший блок */
+  font-size: 1.4em;       /* більший текст */
+  text-align: center;     /* вирівнювання по центру */
+}    
+  </style>
+</head>
+<body>
+  <header>
+    <button id="searchBtn">☰</button>
+    <input type="text" id="searchBox" placeholder="Введіть назву міста...">
+  </header>
+
+  <div id="location"></div>
+  <div id="localTime"></div>
+  <div class="weather">
+    <div class="temp" id="temperature"><span class="degree"> °</span><span class="unit">C</span></div>
+  </div>
+  <div class="icon" id="weatherIcon">☀️</div>
+  <div class="details">
+    <div id="wind">Вітер: -- км/год</div>
+    <div id="precip">Ймовірність опадів: 0%</div>
+  </div>
+  <div class="forecast" id="forecast"></div>
+  <div id="error"></div>
+
+  <script>
+    function findClosestHourIndex(currentTime, hourlyTimes) {
+      const target = new Date(currentTime).getTime();
+      let closestIndex = 0;
+      let minDiff = Infinity;
+      for (let i = 0; i < hourlyTimes.length; i++) {
+        const time = new Date(hourlyTimes[i]).getTime();
+        const diff = Math.abs(time - target);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestIndex = i;
+        }
+      }
+      return closestIndex;
+    }
+
+    const searchBtn = document.getElementById("searchBtn");
+    const searchBox = document.getElementById("searchBox");
+
+    // Виправлений код кнопки
+    searchBtn.addEventListener("click", () => {
+      if (searchBox.style.display === "inline") {
+        searchBox.style.display = "none";
+      } else {
+        searchBox.style.display = "inline";
+        searchBox.focus();
+      }
+    });
+
+    searchBox.addEventListener("keypress", e => {
+      if (e.key === "Enter") {
+        getWeather(searchBox.value);
+        searchBox.value = "";
+        searchBox.style.display = "none";
+      }
+    });
+
+  async function getWeather(city = "Sumy") {
+  const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${city}&count=1&language=uk&format=json`;
+  try {
+    const geoRes = await fetch(geoUrl);
+    const geoData = await geoRes.json();
+    if (!geoData.results || geoData.results.length === 0) {
+      document.getElementById("error").textContent = "Місто не знайдено.";
+      return;
+    }
+    const { latitude, longitude, name, country } = geoData.results[0];
+    document.getElementById("location").textContent = `${name}, ${country}`;
+    document.getElementById("error").textContent = "";
+
+    // Запит з daily weathercode
+    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&hourly=weathercode&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_mean&timezone=auto`;
+    const weatherRes = await fetch(weatherUrl);
+    const weatherData = await weatherRes.json();
+
+    const current = weatherData.current_weather;
+
+    // Температура зі знаком
+    const tempValue = Math.round(current.temperature);
+    const sign = tempValue > 0 ? "+" : (tempValue < 0 ? "−" : "");
+    document.getElementById("temperature").innerHTML =
+      `<span class="sign">${sign}</span>${tempValue}<span class="degree">°</span><span class="unit">C</span>`;
+
+    document.getElementById("wind").textContent = "Вітер: " + current.windspeed + " км/год";
+
+    // Локальний час міста
+    const localTime = new Date(current.time);
+    const dateStr = localTime.toLocaleDateString("uk-UA", {
+      day: "numeric",
+      month: "long",
+      year: "numeric"
+    });
+    const timeStr = localTime.toLocaleTimeString("uk-UA", {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+    document.getElementById("localTime").innerHTML =
+      dateStr + "<br>Погода на " + timeStr;
+
+    // Іконка для поточної погоди
+    let icon = "☀️";
+    if (current.weathercode >= 1 && current.weathercode <= 3) icon = "☁️";
+    if (current.weathercode >= 45 && current.weathercode <= 48) icon = "🌫️";
+    if (current.weathercode >= 51 && current.weathercode <= 67) icon = "🌧️";
+    if (current.weathercode >= 71 && current.weathercode <= 77) icon = "❄️";
+    if (current.weathercode >= 80 && current.weathercode <= 82) icon = "🌦️";
+    if (current.weathercode >= 95) icon = "⛈️";
+    document.getElementById("weatherIcon").textContent = icon;
+
+    setBackground(current);
+
+    // Прогноз на наступні 7 днів (від завтра)
+    const forecastDiv = document.getElementById("forecast");
+    forecastDiv.innerHTML = "";
+    for (let i = 1; i < weatherData.daily.time.length; i++) {
+  const date = new Date(weatherData.daily.time[i]);
+  const maxTemp = weatherData.daily.temperature_2m_max[i];
+  const minTemp = weatherData.daily.temperature_2m_min[i];
+  const prob = weatherData.daily.precipitation_probability_mean[i];
+
+  // Знаходимо індекс для 12:00 цього дня
+  const noonIndex = weatherData.hourly.time.findIndex(t =>
+    t.startsWith(weatherData.daily.time[i]) && t.includes("12:00")
+  );
+
+  let dayIcon = "☀️";
+  if (noonIndex !== -1) {
+    const noonCode = weatherData.hourly.weathercode[noonIndex];
+    if (noonCode === 0) dayIcon = "☀️";
+    else if (noonCode >= 1 && noonCode <= 3) dayIcon = "☁️";
+    else if (noonCode >= 45 && noonCode <= 48) dayIcon = "🌫️";
+    else if (noonCode >= 51 && noonCode <= 67) dayIcon = "🌧️";
+    else if (noonCode >= 71 && noonCode <= 77) dayIcon = "❄️";
+    else if (noonCode >= 80 && noonCode <= 82) dayIcon = "🌦️";
+    else if (noonCode >= 95) dayIcon = "⛈️";
+  }
+
+  const item = document.createElement("div");
+  item.className = "forecast-item";
+  item.innerHTML = `
+    <div>${date.toLocaleDateString("uk-UA", { weekday: "long", day: "numeric", month: "long" })}</div>
+    <div class="forecast-icon">${dayIcon}</div>
+    <div>🌡 Макс: ${maxTemp}°C</div>
+    <div>🌡 Мін: ${minTemp}°C</div>
+    <div>🌧 ${prob}%</div>
+  `;
+  forecastDiv.appendChild(item);
+}
+  } catch (error) {
+    document.getElementById("error").textContent = "Помилка при отриманні даних.";
+  }
+}
+
+ function setBackground(current) {
+  const hour = new Date(current.time).getHours();
+  let topColor, bottomColor;
+
+  if (hour >= 6 && hour < 18) {
+    // День
+    if (current.weathercode >= 1 && current.weathercode <= 3) {
+      // Хмарний день
+      topColor = "#37474f"; 
+      bottomColor = "#546e7a";
+    } else if (current.weathercode >= 51 && current.weathercode <= 67) {
+      // Дощовий день
+      topColor = "#1a237e"; 
+      bottomColor = "#4a148c";
+    } else {
+      // Сонячний день
+      topColor = "#0277bd"; 
+      bottomColor = "#00bcd4";
+    }
+  } else {
+    // Ніч
+    if (current.weathercode >= 51 && current.weathercode <= 67) {
+      // Дощова ніч
+      topColor = "#0d0d0d"; // майже чорний
+      bottomColor = "#1a237e"; // темно-синій
+    } else if (current.weathercode >= 1 && current.weathercode <= 3) {
+      // Хмарна ніч
+      topColor = "#212121"; 
+      bottomColor = "#424242";
+    } else {
+      // Ясна ніч
+      topColor = "#000000"; // чорний
+      bottomColor = "#0b3d91"; // темно-синій
+    }
+  }
+  document.body.style.background = `linear-gradient(to bottom, ${topColor}, ${bottomColor})`;
+}
+    getWeather(); // за замовчуванням Суми
+
+     /*Установка как программа*/
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/weather/sw.js')
+    .then(() => console.log('SW зареєстрований'))
+    .catch(error => console.error('Помилка реєстрації SW:', error));
+}
+  </script>
+</body>
+</html>
