@@ -182,8 +182,8 @@
     document.getElementById("location").textContent = `${name}, ${country}`;
     document.getElementById("error").textContent = "";
 
-    // Запит з daily weathercode
-    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&hourly=weathercode&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_mean&timezone=auto`;
+    // Додаємо precipitation_probability у hourly
+    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&hourly=weathercode,precipitation_probability&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_mean&timezone=auto`;
     const weatherRes = await fetch(weatherUrl);
     const weatherData = await weatherRes.json();
 
@@ -211,6 +211,12 @@
     document.getElementById("localTime").innerHTML =
       dateStr + "<br>Погода на " + timeStr;
 
+    // Поточна ймовірність опадів
+    const index = findClosestHourIndex(current.time, weatherData.hourly.time);
+    const probNow = weatherData.hourly.precipitation_probability[index];
+    document.getElementById("precip").textContent =
+      "Ймовірність опадів: " + probNow + "%";
+
     // Іконка для поточної погоди
     let icon = "☀️";
     if (current.weathercode >= 1 && current.weathercode <= 3) icon = "☁️";
@@ -223,43 +229,42 @@
 
     setBackground(current);
 
-    // Прогноз на наступні 7 днів (від завтра)
+    // Прогноз на наступні 7 днів (як у тебе було)
     const forecastDiv = document.getElementById("forecast");
     forecastDiv.innerHTML = "";
     for (let i = 1; i < weatherData.daily.time.length; i++) {
-  const date = new Date(weatherData.daily.time[i]);
-  const maxTemp = weatherData.daily.temperature_2m_max[i];
-  const minTemp = weatherData.daily.temperature_2m_min[i];
-  const prob = weatherData.daily.precipitation_probability_mean[i];
+      const date = new Date(weatherData.daily.time[i]);
+      const maxTemp = weatherData.daily.temperature_2m_max[i];
+      const minTemp = weatherData.daily.temperature_2m_min[i];
+      const prob = weatherData.daily.precipitation_probability_mean[i];
 
-  // Знаходимо індекс для 12:00 цього дня
-  const noonIndex = weatherData.hourly.time.findIndex(t =>
-    t.startsWith(weatherData.daily.time[i]) && t.includes("12:00")
-  );
+      const noonIndex = weatherData.hourly.time.findIndex(t =>
+        t.startsWith(weatherData.daily.time[i]) && t.includes("12:00")
+      );
 
-  let dayIcon = "☀️";
-  if (noonIndex !== -1) {
-    const noonCode = weatherData.hourly.weathercode[noonIndex];
-    if (noonCode === 0) dayIcon = "☀️";
-    else if (noonCode >= 1 && noonCode <= 3) dayIcon = "☁️";
-    else if (noonCode >= 45 && noonCode <= 48) dayIcon = "🌫️";
-    else if (noonCode >= 51 && noonCode <= 67) dayIcon = "🌧️";
-    else if (noonCode >= 71 && noonCode <= 77) dayIcon = "❄️";
-    else if (noonCode >= 80 && noonCode <= 82) dayIcon = "🌦️";
-    else if (noonCode >= 95) dayIcon = "⛈️";
-  }
+      let dayIcon = "☀️";
+      if (noonIndex !== -1) {
+        const noonCode = weatherData.hourly.weathercode[noonIndex];
+        if (noonCode === 0) dayIcon = "☀️";
+        else if (noonCode >= 1 && noonCode <= 3) dayIcon = "☁️";
+        else if (noonCode >= 45 && noonCode <= 48) dayIcon = "🌫️";
+        else if (noonCode >= 51 && noonCode <= 67) dayIcon = "🌧️";
+        else if (noonCode >= 71 && noonCode <= 77) dayIcon = "❄️";
+        else if (noonCode >= 80 && noonCode <= 82) dayIcon = "🌦️";
+        else if (noonCode >= 95) dayIcon = "⛈️";
+      }
 
-  const item = document.createElement("div");
-  item.className = "forecast-item";
-  item.innerHTML = `
-    <div>${date.toLocaleDateString("uk-UA", { weekday: "long", day: "numeric", month: "long" })}</div>
-    <div class="forecast-icon">${dayIcon}</div>
-    <div>🌡 Макс: ${maxTemp}°C</div>
-    <div>🌡 Мін: ${minTemp}°C</div>
-    <div>🌧 ${prob}%</div>
-  `;
-  forecastDiv.appendChild(item);
-}
+      const item = document.createElement("div");
+      item.className = "forecast-item";
+      item.innerHTML = `
+        <div>${date.toLocaleDateString("uk-UA", { weekday: "long", day: "numeric", month: "long" })}</div>
+        <div class="forecast-icon">${dayIcon}</div>
+        <div>🌡 Макс: ${maxTemp}°C</div>
+        <div>🌡 Мін: ${minTemp}°C</div>
+        <div>🌧 ${prob}%</div>
+      `;
+      forecastDiv.appendChild(item);
+    }
   } catch (error) {
     document.getElementById("error").textContent = "Помилка при отриманні даних.";
   }
