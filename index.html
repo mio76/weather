@@ -228,10 +228,10 @@
 
     setBackground(current);
 
-    // Прогноз на наступні 7 днів (як у тебе було)
+    // Прогноз на наступні 7 днів
     const forecastDiv = document.getElementById("forecast");
     forecastDiv.innerHTML = "";
-    for (let i = 1; i < weatherData.daily.time.length; i++) {
+    for (let i = 0; i < weatherData.daily.time.length; i++) {
       const date = new Date(weatherData.daily.time[i]);
       const maxTemp = weatherData.daily.temperature_2m_max[i];
       const minTemp = weatherData.daily.temperature_2m_min[i];
